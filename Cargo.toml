@@ -1,0 +1,15 @@
+[package]
+name = "dcs-module-rpc"
+version = "0.1.0"
+authors = ["Markus Ast <m@rkusa.st>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures = "0.3"
+log = "0.4"
+mlua = { version = "0.4", default-features = false, features = ["lua51"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_mlua = { git = "https://github.com/rkusa/serde_mlua.git", branch = "master" }
+thiserror = "1.0"
