@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use crate::retain_mut::RetainMut;
 use futures::channel::{mpsc, oneshot};
 use futures::Stream;
-use mlua::{Lua, Value};
+use mlua::{Lua, Result as LuaResult, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -65,6 +65,7 @@ impl<E> RPC<E> {
     {
         let (tx, rx) = oneshot::channel();
         {
+            // TODO: use async Mutex
             let mut queue = self.queue.lock().unwrap();
             queue.push_back(Box::new(PendingRequest {
                 method: method.to_string(),
@@ -110,10 +111,19 @@ impl<E> RPC<E> {
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error serializing/deserializing Lua type: {0}")]
-    Serde(#[from] serde_mlua::Error),
     #[error("Error form mission script: {0}")]
     Script(String),
+    #[error("Failed to deserialize params: {0}")]
+    DeserializeParams(#[source] serde_mlua::Error),
+    #[error("Failed to deserialize result for method {method}: {err}\n{result}")]
+    DeserializeResult {
+        #[source]
+        err: serde_mlua::Error,
+        method: String,
+        result: String,
+    },
+    #[error("Failed to serialize params: {0}")]
+    SerializeParams(#[source] serde_mlua::Error),
 }
 
 impl<E> Clone for RPC<E> {
@@ -163,4 +173,34 @@ where
 pub enum Response<R> {
     Success(R),
     Error(String),
+}
+
+#[allow(unused)]
+fn pretty_print_value(val: Value<'_>, indent: usize) -> LuaResult<String> {
+    Ok(match val {
+        Value::Nil => "nil".to_string(),
+        Value::Boolean(v) => v.to_string(),
+        Value::LightUserData(_) => String::new(),
+        Value::Integer(v) => v.to_string(),
+        Value::Number(v) => v.to_string(),
+        Value::String(v) => format!("\"{}\"", v.to_str()?),
+        Value::Table(t) => {
+            let mut s = "{\n".to_string();
+            for pair in t.pairs::<Value<'_>, Value<'_>>() {
+                let (key, value) = pair?;
+                s += &format!(
+                    "{}{} = {},\n",
+                    "  ".repeat(indent + 1),
+                    pretty_print_value(key, indent + 1)?,
+                    pretty_print_value(value, indent + 1)?
+                );
+            }
+            s += &format!("{}}}", "  ".repeat(indent));
+            s
+        }
+        Value::Function(_) => "[function]".to_string(),
+        Value::Thread(_) => String::new(),
+        Value::UserData(_) => String::new(),
+        Value::Error(err) => err.to_string(),
+    })
 }
