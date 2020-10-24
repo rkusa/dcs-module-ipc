@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::retain_mut::RetainMut;
 use futures::channel::{mpsc, oneshot};
+use futures::lock::Mutex;
 use futures::Stream;
 use mlua::{Lua, Result as LuaResult, Value};
 use serde::{Deserialize, Serialize};
@@ -42,19 +43,19 @@ impl<E> RPC<E> {
     }
 
     pub fn try_next(&self) -> Option<Box<dyn Request + Send + Sync>> {
-        if let Ok(mut queue) = self.queue.try_lock() {
+        if let Some(mut queue) = self.queue.try_lock() {
             queue.pop_front()
         } else {
             None
         }
     }
 
-    pub fn event(&self, event: E)
+    pub async fn event(&self, event: E)
     where
         E: Clone + std::fmt::Debug,
     {
         log::debug!("Received event: {:#?}", event);
-        let mut clients = self.subscriptions.lock().unwrap();
+        let mut clients = self.subscriptions.lock().await;
         clients.retain_mut(move |tx| tx.try_send(event.clone()).is_ok());
     }
 
@@ -66,7 +67,7 @@ impl<E> RPC<E> {
         let (tx, rx) = oneshot::channel();
         {
             // TODO: use async Mutex
-            let mut queue = self.queue.lock().unwrap();
+            let mut queue = self.queue.lock().await;
             queue.push_back(Box::new(PendingRequest {
                 method: method.to_string(),
                 params: params,
@@ -87,7 +88,7 @@ impl<E> RPC<E> {
     {
         let (tx, rx) = oneshot::channel::<Response<()>>();
         {
-            let mut queue = self.queue.lock().unwrap();
+            let mut queue = self.queue.lock().await;
             queue.push_back(Box::new(PendingRequest {
                 method: method.to_string(),
                 params: params,
@@ -99,10 +100,10 @@ impl<E> RPC<E> {
         Ok(())
     }
 
-    pub fn events(&self) -> impl Stream<Item = E> {
+    pub async fn events(&self) -> impl Stream<Item = E> {
         let (tx, rx) = mpsc::channel(128);
         {
-            let mut subscriptions = self.subscriptions.lock().unwrap();
+            let mut subscriptions = self.subscriptions.lock().await;
             subscriptions.push(tx);
         }
         rx
