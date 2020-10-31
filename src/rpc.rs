@@ -75,6 +75,7 @@ impl<E> RPC<E> {
             }));
         }
 
+        // TODO: add timeout
         let res = rx.await.unwrap();
         match res {
             Response::Success(result) => Ok(result),
@@ -112,7 +113,7 @@ impl<E> RPC<E> {
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error form mission script: {0}")]
+    #[error("Error from mission script: {0}")]
     Script(String),
     #[error("Failed to deserialize params: {0}")]
     DeserializeParams(#[source] serde_mlua::Error),
@@ -153,10 +154,12 @@ where
     }
 
     fn success(&mut self, value: &Value) -> Result<(), serde_mlua::Error> {
+        let res = serde_mlua::from_value(value.clone())?;
         if let Some(tx) = self.tx.take() {
-            let res = serde_mlua::from_value(value.clone())?;
             // log::debug!("Received: {:#?}", res);
             let _ = tx.send(Response::Success(res));
+        } else {
+            log::error!("Failed to send RPC success result: channel gone");
         }
 
         Ok(())
@@ -165,6 +168,8 @@ where
     fn error(&mut self, error: String) {
         if let Some(tx) = self.tx.take() {
             let _ = tx.send(Response::Error(error));
+        } else {
+            log::error!("Failed to send RPC error result: channel gone");
         }
     }
 }
