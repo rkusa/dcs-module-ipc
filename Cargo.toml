@@ -1,6 +1,6 @@
 [package]
 name = "dcs-module-rpc"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Markus Ast <m@rkusa.st>"]
 edition = "2018"
 
@@ -11,5 +11,5 @@ futures = "0.3"
 log = "0.4"
 mlua = { version = "0.4", default-features = false, features = ["lua51"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_mlua = { git = "https://github.com/rkusa/serde_mlua.git", branch = "master" }
+serde_mlua = { git = "https://github.com/rkusa/serde_mlua.git", tag = "0.1.0" }
 thiserror = "1.0"
