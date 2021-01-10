@@ -5,7 +5,7 @@ use crate::retain_mut::RetainMut;
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Stream;
-use mlua::{Lua, Result as LuaResult, Value};
+use mlua::{Lua, LuaSerdeExt, Result as LuaResult, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -24,8 +24,8 @@ where
 
 pub trait Request {
     fn method(&self) -> &str;
-    fn params<'lua>(&self, lua: &'lua Lua) -> Result<Option<Value<'lua>>, serde_mlua::Error>;
-    fn success(&mut self, value: &Value) -> Result<(), serde_mlua::Error>;
+    fn params<'lua>(&self, lua: &'lua Lua) -> Result<Option<Value<'lua>>, mlua::Error>;
+    fn success<'lua>(&mut self, lua: &'lua Lua, value: &Value) -> Result<(), mlua::Error>;
     fn error(&mut self, error: String);
 }
 
@@ -116,16 +116,16 @@ pub enum Error {
     #[error("Error from mission script: {0}")]
     Script(String),
     #[error("Failed to deserialize params: {0}")]
-    DeserializeParams(#[source] serde_mlua::Error),
+    DeserializeParams(#[source] mlua::Error),
     #[error("Failed to deserialize result for method {method}: {err}\n{result}")]
     DeserializeResult {
         #[source]
-        err: serde_mlua::Error,
+        err: mlua::Error,
         method: String,
         result: String,
     },
     #[error("Failed to serialize params: {0}")]
-    SerializeParams(#[source] serde_mlua::Error),
+    SerializeParams(#[source] mlua::Error),
 }
 
 impl<E> Clone for RPC<E> {
@@ -146,15 +146,15 @@ where
         &self.method
     }
 
-    fn params<'lua>(&self, lua: &'lua Lua) -> Result<Option<Value<'lua>>, serde_mlua::Error> {
+    fn params<'lua>(&self, lua: &'lua Lua) -> Result<Option<Value<'lua>>, mlua::Error> {
         self.params
             .as_ref()
-            .map(|params| serde_mlua::to_value(lua, params))
+            .map(|params| lua.to_value(params))
             .transpose()
     }
 
-    fn success(&mut self, value: &Value) -> Result<(), serde_mlua::Error> {
-        let res = serde_mlua::from_value(value.clone())?;
+    fn success<'lua>(&mut self, lua: &'lua Lua, value: &Value) -> Result<(), mlua::Error> {
+        let res = lua.from_value(value.clone())?;
         if let Some(tx) = self.tx.take() {
             // log::debug!("Received: {:#?}", res);
             let _ = tx.send(Response::Success(res));
