@@ -1,4 +1,4 @@
 mod retain_mut;
-mod rpc;
+mod ipc;
 
-pub use rpc::{Error, RPC};
+pub use ipc::{Error, IPC};

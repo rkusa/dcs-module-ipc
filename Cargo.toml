@@ -1,8 +1,11 @@
 [package]
-name = "dcs-module-rpc"
-version = "0.2.0"
+name = "dcs-module-ipc"
+version = "0.3.0"
 authors = ["Markus Ast <m@rkusa.st>"]
+license = "MIT OR Apache-2.0"
 edition = "2018"
+description = "Building block to implement pull-based IPC communication into Lua modules (DLLs) for DCS World."
+repository = "https://github.com/rkusa/dcs-module-ipc"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

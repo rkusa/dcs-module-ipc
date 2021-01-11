@@ -29,14 +29,14 @@ pub trait Request {
     fn error(&mut self, error: String);
 }
 
-pub struct RPC<E> {
+pub struct IPC<E> {
     queue: Queue,
     subscriptions: Subscriptions<E>,
 }
 
-impl<E> RPC<E> {
+impl<E> IPC<E> {
     pub fn new() -> Self {
-        RPC {
+        IPC {
             queue: Arc::new(Mutex::new(VecDeque::new())),
             subscriptions: Arc::new(Mutex::new(Vec::new())),
         }
@@ -128,9 +128,9 @@ pub enum Error {
     SerializeParams(#[source] mlua::Error),
 }
 
-impl<E> Clone for RPC<E> {
+impl<E> Clone for IPC<E> {
     fn clone(&self) -> Self {
-        RPC {
+        IPC {
             queue: self.queue.clone(),
             subscriptions: self.subscriptions.clone(),
         }
@@ -159,7 +159,7 @@ where
             // log::debug!("Received: {:#?}", res);
             let _ = tx.send(Response::Success(res));
         } else {
-            log::error!("Failed to send RPC success result: channel gone");
+            log::error!("Failed to send IPC success result: channel gone");
         }
 
         Ok(())
@@ -169,7 +169,7 @@ where
         if let Some(tx) = self.tx.take() {
             let _ = tx.send(Response::Error(error));
         } else {
-            log::error!("Failed to send RPC error result: channel gone");
+            log::error!("Failed to send IPC error result: channel gone");
         }
     }
 }
