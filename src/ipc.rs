@@ -210,3 +210,14 @@ fn pretty_print_value(val: Value<'_>, indent: usize) -> LuaResult<String> {
         Value::Error(err) => err.to_string(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn test_error_send_sync() {
+        fn assert_send_sync(_: impl std::error::Error + Send + Sync) {}
+        assert_send_sync(Error::Script(String::new()));
+    }
+}
