@@ -26,7 +26,7 @@ pub trait Request {
     fn method(&self) -> &str;
     fn params<'lua>(&self, lua: &'lua Lua) -> Result<Option<Value<'lua>>, mlua::Error>;
     fn success<'lua>(&mut self, lua: &'lua Lua, value: &Value) -> Result<(), mlua::Error>;
-    fn error(&mut self, error: String);
+    fn error(&mut self, error: String, kind: Option<String>);
 }
 
 pub struct IPC<E> {
@@ -66,7 +66,6 @@ impl<E> IPC<E> {
     {
         let (tx, rx) = oneshot::channel();
         {
-            // TODO: use async Mutex
             let mut queue = self.queue.lock().await;
             queue.push_back(Box::new(PendingRequest {
                 method: method.to_string(),
@@ -79,7 +78,7 @@ impl<E> IPC<E> {
         let res = rx.await.unwrap();
         match res {
             Response::Success(result) => Ok(result),
-            Response::Error(msg) => Err(Error::Script(msg)),
+            Response::Error { kind, message } => Err(Error::Script { kind, message }),
         }
     }
 
@@ -113,8 +112,11 @@ impl<E> IPC<E> {
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error from mission script: {0}")]
-    Script(String),
+    #[error("Error from mission script: {message}")]
+    Script {
+        kind: Option<String>,
+        message: String,
+    },
     #[error("Failed to deserialize params: {0}")]
     DeserializeParams(#[source] mlua::Error),
     #[error("Failed to deserialize result for method {method}: {err}\n{result}")]
@@ -165,9 +167,9 @@ where
         Ok(())
     }
 
-    fn error(&mut self, error: String) {
+    fn error(&mut self, message: String, kind: Option<String>) {
         if let Some(tx) = self.tx.take() {
-            let _ = tx.send(Response::Error(error));
+            let _ = tx.send(Response::Error { kind, message });
         } else {
             log::error!("Failed to send IPC error result: channel gone");
         }
@@ -178,7 +180,10 @@ where
 #[serde(untagged)]
 pub enum Response<R> {
     Success(R),
-    Error(String),
+    Error {
+        kind: Option<String>,
+        message: String,
+    },
 }
 
 #[allow(unused)]
