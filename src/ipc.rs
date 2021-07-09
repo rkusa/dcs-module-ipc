@@ -5,7 +5,7 @@ use crate::retain_mut::RetainMut;
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
 use futures::Stream;
-use mlua::{Lua, LuaSerdeExt, Result as LuaResult, Value};
+use mlua::{Lua, LuaSerdeExt, Result as LuaResult, SerializeOptions, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -151,7 +151,12 @@ where
     fn params<'lua>(&self, lua: &'lua Lua) -> Result<Option<Value<'lua>>, mlua::Error> {
         self.params
             .as_ref()
-            .map(|params| lua.to_value(params))
+            .map(|params| {
+                lua.to_value_with(
+                    params,
+                    SerializeOptions::new().serialize_none_to_null(false),
+                )
+            })
             .transpose()
     }
 
