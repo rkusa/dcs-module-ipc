@@ -35,13 +35,6 @@ pub struct IPC<E> {
 }
 
 impl<E> IPC<E> {
-    pub fn new() -> Self {
-        IPC {
-            queue: Arc::new(Mutex::new(VecDeque::new())),
-            subscriptions: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
     pub fn try_next(&self) -> Option<Box<dyn Request + Send + Sync>> {
         if let Some(mut queue) = self.queue.try_lock() {
             queue.pop_front()
@@ -54,7 +47,6 @@ impl<E> IPC<E> {
     where
         E: Clone + std::fmt::Debug,
     {
-        log::debug!("Received event: {:#?}", event);
         let mut clients = self.subscriptions.lock().await;
         clients.retain_mut(move |tx| tx.try_send(event.clone()).is_ok());
     }
@@ -69,7 +61,7 @@ impl<E> IPC<E> {
             let mut queue = self.queue.lock().await;
             queue.push_back(Box::new(PendingRequest {
                 method: method.to_string(),
-                params: params,
+                params,
                 tx: Some(tx),
             }));
         }
@@ -91,7 +83,7 @@ impl<E> IPC<E> {
             let mut queue = self.queue.lock().await;
             queue.push_back(Box::new(PendingRequest {
                 method: method.to_string(),
-                params: params,
+                params,
                 tx: Some(tx),
             }));
         }
@@ -107,6 +99,15 @@ impl<E> IPC<E> {
             subscriptions.push(tx);
         }
         rx
+    }
+}
+
+impl<E> Default for IPC<E> {
+    fn default() -> Self {
+        Self {
+            queue: Arc::new(Mutex::new(VecDeque::new())),
+            subscriptions: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 }
 
@@ -163,7 +164,6 @@ where
     fn success<'lua>(&mut self, lua: &'lua Lua, value: &Value) -> Result<(), mlua::Error> {
         let res = lua.from_value(value.clone())?;
         if let Some(tx) = self.tx.take() {
-            // log::debug!("Received: {:#?}", res);
             let _ = tx.send(Response::Success(res));
         } else {
             log::error!("Failed to send IPC success result: channel gone");
