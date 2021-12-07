@@ -2,12 +2,13 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use crate::retain_mut::RetainMut;
-use futures::channel::{mpsc, oneshot};
-use futures::lock::Mutex;
-use futures::Stream;
 use mlua::{Lua, LuaSerdeExt, Result as LuaResult, SerializeOptions, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 
 type Queue = Arc<Mutex<VecDeque<Box<dyn Request + Send + Sync>>>>;
 type Subscriptions<E> = Arc<Mutex<Vec<mpsc::Sender<E>>>>;
@@ -36,7 +37,7 @@ pub struct IPC<E> {
 
 impl<E> IPC<E> {
     pub fn try_next(&self) -> Option<Box<dyn Request + Send + Sync>> {
-        if let Some(mut queue) = self.queue.try_lock() {
+        if let Ok(mut queue) = self.queue.try_lock() {
             queue.pop_front()
         } else {
             None
@@ -48,7 +49,16 @@ impl<E> IPC<E> {
         E: Clone + std::fmt::Debug,
     {
         let mut clients = self.subscriptions.lock().await;
-        clients.retain_mut(move |tx| tx.try_send(event.clone()).is_ok());
+        clients.retain_mut(move |tx| match tx.try_send(event.clone()) {
+            Ok(_) => true,
+            Err(TrySendError::Full(_)) => {
+                log::error!(
+                    "IPC event channel is full and cannot receive any more events right now"
+                );
+                true
+            }
+            Err(TrySendError::Closed(_)) => false,
+        });
     }
 
     pub async fn request<P, R>(&self, method: &str, params: Option<P>) -> Result<R, Error>
@@ -93,12 +103,12 @@ impl<E> IPC<E> {
     }
 
     pub async fn events(&self) -> impl Stream<Item = E> {
-        let (tx, rx) = mpsc::channel(128);
+        let (tx, rx) = mpsc::channel(1024);
         {
             let mut subscriptions = self.subscriptions.lock().await;
             subscriptions.push(tx);
         }
-        rx
+        ReceiverStream::new(rx)
     }
 }
 
