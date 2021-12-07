@@ -1,2 +1,5 @@
+.*
+!.cargo
+!.gitignore
 /target
 Cargo.lock
