@@ -4,7 +4,7 @@ version = "0.6.0"
 authors = ["Markus Ast <m@rkusa.st>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.61"
 description = "Building block to implement pull-based IPC communication into Lua modules (DLLs) for DCS World."
 repository = "https://github.com/rkusa/dcs-module-ipc"
 

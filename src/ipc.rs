@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use crate::retain_mut::RetainMut;
 use mlua::{Lua, LuaSerdeExt, Result as LuaResult, SerializeOptions, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
